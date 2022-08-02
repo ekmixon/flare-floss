@@ -71,7 +71,7 @@ class FunctionArgumentGetter(viv_utils.LoggingObject):
         # optimization: avoid re-processing the same function repeatedly
         caller_function_vas = set([])
         for caller_va in self.vivisect_workspace.getCallers(function_va):
-            logger.trace("    caller: %s" % hex(caller_va))
+            logger.trace(f"    caller: {hex(caller_va)}")
 
             try:
                 op = self.vivisect_workspace.parseOpcode(caller_va)
@@ -107,7 +107,10 @@ class FunctionArgumentGetter(viv_utils.LoggingObject):
             logger.trace("    unknown function")
             return []
 
-        logger.trace("    emulating: %s, watching %s" % (hex(self.index[fva]), hex(target_fva)))
+        logger.trace(
+            f"    emulating: {hex(self.index[fva])}, watching {hex(target_fva)}"
+        )
+
         monitor = CallMonitor(self.vivisect_workspace, target_fva)
         with installed_monitor(self.driver, monitor):
             with floss.api_hooks.defaultHooks(self.driver):

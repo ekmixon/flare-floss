@@ -106,10 +106,7 @@ class ApiMonitor(viv_utils.emulator_drivers.Monitor):
         esp = emu.getStackCounter()
         stack_str = ""
         for i in range(16, -16, -4):
-            if i == 0:
-                sp = "<= SP"
-            else:
-                sp = "%02x" % (-i)
+            sp = "<= SP" if i == 0 else "%02x" % (-i)
             stack_str = "%s\n0x%08x - 0x%08x %s" % (stack_str, (esp - i), self.getStackValue(emu, -i), sp)
         logger.trace(stack_str)
 
@@ -166,9 +163,7 @@ def round(i, size):
     :type size: int
     :rtype: int
     """
-    if i % size == 0:
-        return i
-    return i + (size - (i % size))
+    return i if i % size == 0 else i + (size - (i % size))
 
 
 class RtlAllocateHeapHook(viv_utils.emulator_drivers.Hook):
@@ -216,11 +211,11 @@ class AllocateHeap(RtlAllocateHeapHook):
         super(AllocateHeap, self).__init__(*args, **kwargs)
 
     def hook(self, callname, driver, callconv, api, argv):
-        if (
-            callname == "kernel32.LocalAlloc"
-            or callname == "kernel32.GlobalAlloc"
-            or callname == "kernel32.VirtualAlloc"
-        ):
+        if callname in [
+            "kernel32.LocalAlloc",
+            "kernel32.GlobalAlloc",
+            "kernel32.VirtualAlloc",
+        ]:
             size = argv[1]
         elif callname == "kernel32.VirtualAllocEx":
             size = argv[2]
@@ -240,7 +235,7 @@ class MallocHeap(RtlAllocateHeapHook):
         super(MallocHeap, self).__init__(*args, **kwargs)
 
     def hook(self, callname, driver, callconv, api, argv):
-        if callname == "msvcrt.malloc" or callname == "msvcrt.calloc":
+        if callname in ["msvcrt.malloc", "msvcrt.calloc"]:
             size = argv[0]
             va = self._allocate_mem(driver, size)
             callconv.execCallReturn(driver, va, len(argv))
@@ -265,7 +260,7 @@ class MemcpyHook(viv_utils.emulator_drivers.Hook):
         super(MemcpyHook, self).__init__(*args, **kwargs)
 
     def hook(self, callname, driver, callconv, api, argv):
-        if callname == "msvcrt.memcpy" or callname == "msvcrt.memmove":
+        if callname in ["msvcrt.memcpy", "msvcrt.memmove"]:
             emu = driver
             dst, src, count = argv
             if count > self.MAX_COPY_SIZE:
@@ -287,9 +282,7 @@ def readStringAtRva(emu, rva, maxsize=None):
     :return: the read string
     """
     ret = bytearray()
-    while True:
-        if maxsize and maxsize <= len(ret):
-            break
+    while not (maxsize and maxsize <= len(ret)):
         x = emu.readMemory(rva, 1)
         if x == b"\x00" or x is None:
             break

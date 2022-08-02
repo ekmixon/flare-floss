@@ -15,14 +15,21 @@ def extract_strings(vw):
     """
     Deobfuscate strings from vivisect workspace
     """
-    ret = []
     decoding_functions_candidates = identify_decoding_functions(vw)
-    for s in floss_main.decode_strings(vw, decoding_functions_candidates, 4, disable_progress=True):
-        ret.append(s.string)
+    ret = [
+        s.string
+        for s in floss_main.decode_strings(
+            vw, decoding_functions_candidates, 4, disable_progress=True
+        )
+    ]
 
     selected_functions = floss_main.select_functions(vw, None)
-    for s in stackstrings.extract_stackstrings(vw, selected_functions, 4, quiet=True):
-        ret.append(s.string)
+    ret.extend(
+        s.string
+        for s in stackstrings.extract_stackstrings(
+            vw, selected_functions, 4, quiet=True
+        )
+    )
 
     return ret
 
@@ -43,19 +50,17 @@ class YamlFile(pytest.File):
     def collect(self):
         spec = yaml.safe_load(self.fspath.open())
         test_dir = os.path.dirname(str(self.fspath))
+        # TODO specify max runtime via command line option
+        MAX_RUNTIME = 30.0
         for platform, archs in spec["Output Files"].items():
             for arch, filename in archs.items():
-                # TODO specify max runtime via command line option
-                MAX_RUNTIME = 30.0
                 try:
                     runtime_raw = spec["FLOSS running time"]
                     runtime = float(runtime_raw.split(" ")[0])
                     if runtime > MAX_RUNTIME:
                         # skip this test
                         continue
-                except KeyError:
-                    pass
-                except ValueError:
+                except (KeyError, ValueError):
                     pass
                 filepath = os.path.join(test_dir, filename)
                 if os.path.exists(filepath):
@@ -95,12 +100,10 @@ class FLOSSTest(pytest.Item):
         arch = self.spec.get("Shellcode Architecture")
         if arch in ("i386", "amd64"):
             vw = viv_utils.getShellcodeWorkspaceFromFile(test_path, arch)
-            found_strings = set(extract_strings(vw))
         else:
             # default assumes pe
             vw = viv_utils.getWorkspace(test_path)
-            found_strings = set(extract_strings(vw))
-
+        found_strings = set(extract_strings(vw))
         if not (expected_strings <= found_strings):
             raise FLOSSStringsNotExtracted(expected_strings, found_strings)
 
@@ -135,7 +138,7 @@ class FLOSSTest(pytest.Item):
         self._test_strings(test_path)
 
     def reportinfo(self):
-        return self.fspath, 0, "usecase: %s" % self.name
+        return self.fspath, 0, f"usecase: {self.name}"
 
     def repr_failure(self, excinfo):
         if isinstance(excinfo.value, FLOSSStringsNotExtracted):
@@ -144,9 +147,9 @@ class FLOSSTest(pytest.Item):
             return "\n".join(
                 [
                     "FLOSS extraction failed:",
-                    "   expected: %s" % str(expected),
-                    "   got: %s" % str(got),
-                    "   expected-got: %s" % str(set(expected) - set(got)),
-                    "   got-expected: %s" % str(set(got) - set(expected)),
+                    f"   expected: {str(expected)}",
+                    f"   got: {str(got)}",
+                    f"   expected-got: {str(set(expected) - set(got))}",
+                    f"   got-expected: {str(set(got) - set(expected))}",
                 ]
             )

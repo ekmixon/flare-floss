@@ -99,8 +99,14 @@ def decode_strings(
         for ctx in string_decoder.extract_decoding_contexts(vw, fva, max_hits):
             for delta in string_decoder.emulate_decoding_routine(vw, function_index, fva, ctx, max_instruction_count):
                 for delta_bytes in string_decoder.extract_delta_bytes(delta, ctx.decoded_at_va, fva):
-                    for decoded_string in string_decoder.extract_strings(delta_bytes, min_length, no_filter):
-                        decoded_strings.append(decoded_string)
+                    decoded_strings.extend(
+                        iter(
+                            string_decoder.extract_strings(
+                                delta_bytes, min_length, no_filter
+                            )
+                        )
+                    )
+
     return decoded_strings
 
 
@@ -188,14 +194,15 @@ def make_parser(argv):
         ("sc32", "32-bit shellcode"),
         ("sc64", "64-bit shellcode"),
     ]
-    format_help = ", ".join(["%s: %s" % (f[0], f[1]) for f in formats])
+    format_help = ", ".join([f"{f[0]}: {f[1]}" for f in formats])
     parser.add_argument(
         "-f",
         "--format",
         choices=[f[0] for f in formats],
         default="auto",
-        help="select sample format, %s" % format_help,
+        help=f"select sample format, {format_help}",
     )
+
 
     parser.add_argument(
         "-n",
@@ -372,10 +379,11 @@ def select_functions(vw, asked_functions: Optional[List[int]]) -> Set[int]:
 
     asked_functions_ = set(asked_functions or [])
 
-    # validate that all functions requested by the user exist.
-    missing_functions = sorted(asked_functions_ - functions)
-    if missing_functions:
-        raise ValueError("failed to find functions: %s" % (", ".join(map(hex, sorted(missing_functions)))))
+    if missing_functions := sorted(asked_functions_ - functions):
+        raise ValueError(
+            f'failed to find functions: {", ".join(map(hex, sorted(missing_functions)))}'
+        )
+
 
     logger.debug("selected %d functions", len(asked_functions_))
     logger.trace("selected the following functions: %s", ", ".join(map(hex, sorted(asked_functions_))))
@@ -400,9 +408,7 @@ def is_workspace_file(sample_file_path):
     :param sample_file_path:
     :return: True if file extension is .viv, False otherwise
     """
-    if os.path.splitext(sample_file_path)[1] == ".viv":
-        return True
-    return False
+    return os.path.splitext(sample_file_path)[1] == ".viv"
 
 
 def is_supported_file_type(sample_file_path):
@@ -414,10 +420,7 @@ def is_supported_file_type(sample_file_path):
     with open(sample_file_path, "rb") as f:
         magic = f.read(2)
 
-    if magic in SUPPORTED_FILE_MAGIC:
-        return True
-    else:
-        return False
+    return magic in SUPPORTED_FILE_MAGIC
 
 
 def print_decoding_results(decoded_strings: List[DecodedString], quiet=False):
@@ -428,7 +431,7 @@ def print_decoding_results(decoded_strings: List[DecodedString], quiet=False):
     :param quiet: print strings only, suppresses headers
     """
     logger.info("decoded %d strings" % len(decoded_strings))
-    fvas = set([i.decoding_routine for i in decoded_strings])
+    fvas = {i.decoding_routine for i in decoded_strings}
     for fva in fvas:
         grouped_strings = [ds for ds in decoded_strings if ds.decoding_routine == fva]
         len_ds = len(grouped_strings)
@@ -458,7 +461,7 @@ def print_decoded_strings(decoded_strings: List[DecodedString], quiet=False):
                 offset_string = hex(ds.address or 0)
             ss.append((offset_string, hex(ds.decoded_at), s))
 
-        if len(ss) > 0:
+        if ss:
             print(tabulate.tabulate(ss, headers=["Offset", "Called At", "String"]))
 
 
@@ -507,7 +510,7 @@ def print_stack_strings(extracted_strings: Union[List[StackString], List[TightSt
 
     if quiet:
         for ss in extracted_strings:
-            print("%s" % (ss.string))
+            print(f"{ss.string}")
     elif count > 0:
         print(
             tabulate.tabulate(
@@ -535,18 +538,20 @@ def load_vw(
     should_save_workspace: bool = False,
 ) -> VivWorkspace:
 
-    if format not in ("sc32", "sc64"):
-        if not is_supported_file_type(sample_path):
-            raise WorkspaceLoadError(
-                "FLOSS currently supports the following formats for string decoding and stackstrings: PE\n"
-                "You can analyze shellcode using the --format sc32|sc64 switch. See the help (-h) for more information."
-            )
+    if format not in ("sc32", "sc64") and not is_supported_file_type(
+        sample_path
+    ):
+        raise WorkspaceLoadError(
+            "FLOSS currently supports the following formats for string decoding and stackstrings: PE\n"
+            "You can analyze shellcode using the --format sc32|sc64 switch. See the help (-h) for more information."
+        )
 
     # get shellcode type based on sample file extension
-    if format == "auto" and sample_path.endswith(EXTENSIONS_SHELLCODE_32):
-        format = "sc32"
-    elif format == "auto" and sample_path.endswith(EXTENSIONS_SHELLCODE_64):
-        format = "sc64"
+    if format == "auto":
+        if sample_path.endswith(EXTENSIONS_SHELLCODE_32):
+            format = "sc32"
+        elif sample_path.endswith(EXTENSIONS_SHELLCODE_64):
+            format = "sc64"
 
     if format == "sc32":
         vw = viv_utils.getShellcodeWorkspaceFromFile(sample_path, arch="i386", analyze=False)
@@ -596,7 +601,10 @@ def get_default_root() -> str:
 
 def get_signatures(sigs_path):
     if not os.path.exists(sigs_path):
-        raise IOError("signatures path %s does not exist or cannot be accessed" % sigs_path)
+        raise IOError(
+            f"signatures path {sigs_path} does not exist or cannot be accessed"
+        )
+
 
     paths = []
     if os.path.isfile(sigs_path):

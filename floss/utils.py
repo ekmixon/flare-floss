@@ -53,10 +53,7 @@ def remove_stack_memory(emu: Emulator):
 def get_vivisect_meta_info(vw, selected_functions):
     info = OrderedDict()
     entry_points = vw.getEntryPoints()
-    basename = None
-    if entry_points:
-        basename = vw.getFileByVa(entry_points[0])
-
+    basename = vw.getFileByVa(entry_points[0]) if entry_points else None
     # "blob" is the filename for shellcode
     if basename and basename != "blob":
         version = vw.getFileMeta(basename, "Version")
@@ -120,10 +117,7 @@ def is_fp_string(s):
     Return True if string matches a well-known FP pattern.
     :param s: input string
     """
-    for reg in (FP_FILTER_CHARS, FP_FILTER_REP_CHARS):
-        if reg.match(s):
-            return True
-    return False
+    return any(reg.match(s) for reg in (FP_FILTER_CHARS, FP_FILTER_REP_CHARS))
 
 
 def strip_string(s):

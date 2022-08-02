@@ -73,8 +73,7 @@ class StackstringContextMonitor(viv_utils.emulator_drivers.Monitor):
         if stack_size > MAX_STACK_SIZE:
             raise ValueError("stack size too big: 0x%x" % stack_size)
         stack_buf = emu.readMemory(stack_top, stack_size)
-        ctx = CallContext(op.va, stack_top, stack_bottom, stack_buf)
-        return ctx
+        return CallContext(op.va, stack_top, stack_bottom, stack_buf)
 
     # overrides emulator_drivers.Monitor
     def posthook(self, emu, op, endpc):
@@ -100,12 +99,16 @@ class StackstringContextMonitor(viv_utils.emulator_drivers.Monitor):
             return False
 
         opnds = op.getOperands()
-        if not opnds:
-            # no operands, e.g. movsb, movsd
-            # fail safe and count these regardless of where data is moved to.
-            return True
-        return isinstance(opnds[0], envi.archs.i386.disasm.i386SibOper) or isinstance(
-            opnds[0], envi.archs.i386.disasm.i386RegMemOper
+        return (
+            isinstance(
+                opnds[0],
+                (
+                    envi.archs.i386.disasm.i386SibOper,
+                    envi.archs.i386.disasm.i386RegMemOper,
+                ),
+            )
+            if opnds
+            else True
         )
 
 
@@ -124,7 +127,9 @@ def getPointerSize(vw):
     elif isinstance(vw.arch, envi.archs.i386.i386Module):
         return 4
     else:
-        raise NotImplementedError("unexpected architecture: %s" % (vw.arch.__class__.__name__))
+        raise NotImplementedError(
+            f"unexpected architecture: {vw.arch.__class__.__name__}"
+        )
 
 
 def get_basic_block_ends(vw):

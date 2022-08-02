@@ -139,10 +139,13 @@ def emulate_decoding_routine(vw, function_index, function: int, context, max_ins
         context.decoded_at_va,
         context.return_address,
     )
-    deltas = floss.decoding_manager.emulate_function(
-        emu, function_index, function, context.return_address, max_instruction_count
+    return floss.decoding_manager.emulate_function(
+        emu,
+        function_index,
+        function,
+        context.return_address,
+        max_instruction_count,
     )
-    return deltas
 
 
 @dataclass
@@ -203,10 +206,11 @@ def extract_delta_bytes(delta: Delta, decoded_at_va: int, source_fva: int = 0x0)
             address = section_after_start + offset
 
             diff_bytes = bytes_after[offset : offset + length]
-            if not (stack_start <= address < stack_end):
-                location_type = AddressType.GLOBAL
-            else:
-                location_type = AddressType.STACK
+            location_type = (
+                AddressType.STACK
+                if stack_start <= address < stack_end
+                else AddressType.GLOBAL
+            )
 
             delta_bytes.append(DeltaBytes(address, location_type, diff_bytes, decoded_at_va, source_fva))
 

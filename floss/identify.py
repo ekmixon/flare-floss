@@ -43,16 +43,12 @@ def get_function_meta(f):
 
 
 def get_max_calls_to(vw, skip_thunks=True, skip_libs=True):
-    calls_to = set()
+    calls_to = {
+        len(vw.getXrefsTo(fva))
+        for fva in vw.getFunctions()
+        if not skip_thunks or not is_thunk_function(vw, fva)
+    }
 
-    for fva in vw.getFunctions():
-        if skip_thunks and is_thunk_function(vw, fva):
-            continue
-
-        # TODO skip_libs and is_library_function
-        #     continue
-
-        calls_to.add(len(vw.getXrefsTo(fva)))
 
     return max(calls_to)
 
@@ -84,10 +80,13 @@ def get_functions_without_tightloops(functions):
 
 
 def get_functions_with_features(functions, features):
-    functions_by_features = dict()
+    functions_by_features = {}
     for fva, function_data in functions.items():
-        func_features = list(filter(lambda f: isinstance(f, features), function_data["features"]))
-        if func_features:
+        if func_features := list(
+            filter(
+                lambda f: isinstance(f, features), function_data["features"]
+            )
+        ):
             functions_by_features[fva] = func_features
     return functions_by_features
 
@@ -124,15 +123,15 @@ def find_decoding_function_features(vw, functions, disable_progress=False):
                 function_name = viv_utils.get_function_name(vw, function_address)
                 logger.debug("skipping library function 0x%x (%s)", function_address, function_name)
                 meta["library_functions"][function_address] = function_name
-                n_libs = len(meta["library_functions"])
-                percentage = 100 * (n_libs / n_funcs)
                 if isinstance(pb, tqdm.tqdm):
+                    n_libs = len(meta["library_functions"])
+                    percentage = 100 * (n_libs / n_funcs)
                     pb.set_postfix_str("skipped %d library functions (%d%%)" % (n_libs, percentage))
                 continue
 
             f = viv_utils.Function(vw, function_address)
 
-            function_data = {"meta": get_function_meta(f), "features": list()}
+            function_data = {"meta": get_function_meta(f), "features": []}
 
             # meta data features
             function_data["features"].append(BlockCount(function_data["meta"].get("block_count")))

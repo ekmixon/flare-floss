@@ -82,18 +82,19 @@ def extract_insn_mov(f, bb, insn):
     #   mov byte  [eax], cl
     #   mov dword [edx], eax
 
-    if insn.opcode == INS_MOV:
-        # don't handle len(ops) == 0 for `rep movsb` etc. often used for memcpy
-        if len(insn.opers) != 2:
-            return
+    if insn.opcode != INS_MOV:
+        return
+    # don't handle len(ops) == 0 for `rep movsb` etc. often used for memcpy
+    if len(insn.opers) != 2:
+        return
 
-        op0, op1 = insn.opers
+    op0, op1 = insn.opers
 
-        if not op0.isDeref():
-            return
+    if not op0.isDeref():
+        return
 
-        if op1.isImmed():
-            return
+    if op1.isImmed():
+        return
 
         # as an additional heuristic for global string decoding instructions like
         #   mov     dword_40400C, 0
@@ -102,9 +103,11 @@ def extract_insn_mov(f, bb, insn):
         # i386RegMemOper could also capture operands with displacement != 0
         #   mov     [edx+4], eax
 
-        if isinstance(op0, envi.archs.i386.disasm.i386RegMemOper):
-            if op0.disp == 0:
-                yield Mov(insn)
+    if (
+        isinstance(op0, envi.archs.i386.disasm.i386RegMemOper)
+        and op0.disp == 0
+    ):
+        yield Mov(insn)
 
 
 def extract_function_calls_to(f):
@@ -172,7 +175,7 @@ def extract_function_kinda_tight_loop(f):
         # find semi tight loops: [a]->[c]->[a]
         if not loop_bb:
             for suc in succs:
-                suc_succs = [x for x in cfg.get_successor_basic_blocks(suc)]
+                suc_succs = list(cfg.get_successor_basic_blocks(suc))
                 if len(suc_succs) != 1:
                     continue
                 if suc_succs[0] != bb.va:
@@ -184,21 +187,14 @@ def extract_function_kinda_tight_loop(f):
         if not loop_bb:
             continue
 
-        # get the block after loop, [b]
-        next_bb = None
-        for suc in succs:
-            if loop_bb.va != suc.va:
-                next_bb = suc
-                break
+        if next_bb := next(
+            (suc for suc in succs if loop_bb.va != suc.va), None
+        ):
+            # Blaine's algorithm gets the block before the loop here
+            # additionally, he prunes the identified loops before processing further
+            # TODO prune loops that do not write memory
 
-        if not next_bb:
-            continue
-
-        # Blaine's algorithm gets the block before the loop here
-        # additionally, he prunes the identified loops before processing further
-        # TODO prune loops that do not write memory
-
-        yield KindaTightLoop(bb.va, next_bb.va)
+            yield KindaTightLoop(bb.va, next_bb.va)
 
 
 def extract_bb_tight_loop(f, bb):
@@ -213,9 +209,8 @@ def _bb_has_tight_loop(f, bb):
     """
     if len(bb.instructions) > 0:
         for bva, bflags in bb.instructions[-1].getBranches():
-            if bflags & envi.BR_COND:
-                if bva == bb.va:
-                    return True
+            if bflags & envi.BR_COND and bva == bb.va:
+                return True
     return False
 
 
@@ -239,15 +234,16 @@ def extract_function_loop(f):
 
     for bb in f.basic_blocks:
         if len(bb.instructions) > 0:
-            for bva, bflags in bb.instructions[-1].getBranches():
-                # vivisect does not set branch flags for non-conditional jmp so add explicit check
+            edges.extend(
+                (bb.va, bva)
+                for bva, bflags in bb.instructions[-1].getBranches()
                 if (
                     bflags & envi.BR_COND
                     or bflags & envi.BR_FALL
                     or bflags & envi.BR_TABLE
                     or bb.instructions[-1].mnem == "jmp"
-                ):
-                    edges.append((bb.va, bva))
+                )
+            )
 
     g = networkx.DiGraph()
     g.add_edges_from(edges)
@@ -269,8 +265,7 @@ FUNCTION_HANDLERS = (
 
 def extract_function_features(f):
     for func_handler in FUNCTION_HANDLERS:
-        for feature in func_handler(f):
-            yield feature
+        yield from func_handler(f)
 
 
 BASIC_BLOCK_HANDLERS = (extract_bb_tight_loop,)
@@ -278,8 +273,7 @@ BASIC_BLOCK_HANDLERS = (extract_bb_tight_loop,)
 
 def extract_basic_block_features(f, bb):
     for bb_handler in BASIC_BLOCK_HANDLERS:
-        for feature in bb_handler(f, bb):
-            yield feature
+        yield from bb_handler(f, bb)
 
 
 INSTRUCTION_HANDLERS = (
@@ -291,8 +285,7 @@ INSTRUCTION_HANDLERS = (
 
 def extract_insn_features(f, bb, insn):
     for insn_handler in INSTRUCTION_HANDLERS:
-        for feature in insn_handler(f, bb, insn):
-            yield feature
+        yield from insn_handler(f, bb, insn)
 
 
 ABSTRACTION_HANDLERS = (
@@ -303,5 +296,4 @@ ABSTRACTION_HANDLERS = (
 
 def abstract_features(features):
     for abst_handler in ABSTRACTION_HANDLERS:
-        for feature in abst_handler(features):
-            yield feature
+        yield from abst_handler(features)

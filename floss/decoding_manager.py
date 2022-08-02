@@ -22,9 +22,7 @@ def is_import(emu, va):
     """
     # TODO: also check location type
     t = emu.getVivTaint(va)
-    if t is None:
-        return False
-    return t[1] == "import"
+    return False if t is None else t[1] == "import"
 
 
 # type aliases for envi.memory map
@@ -120,7 +118,6 @@ class DeltaCollectorHook(viv_utils.emulator_drivers.Hook):
                 self.deltas.append(Delta(self._pre_snap, make_snapshot(driver._emu)))
             except MapsTooLargeError:
                 logger.debug("despite call to import %s, maps too large, not extracting strings", callname)
-                pass
 
 
 def emulate_function(
@@ -187,6 +184,4 @@ def emulate_function(
         deltas.append(Delta(pre_snap, make_snapshot(emu)))
     except MapsTooLargeError:
         logger.debug("failed to create final snapshot, emulator mapped too much memory, skipping")
-        pass
-
     return deltas

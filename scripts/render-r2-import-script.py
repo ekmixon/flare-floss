@@ -42,16 +42,18 @@ def render_r2_script(result_document: ResultDocument) -> str:
             ).decode("ascii")
             if ds.address_type == AddressType.GLOBAL:
                 main_commands.append("CCu base64:%s @ %d" % (sanitized_string, ds.address))
-                if ds.decoding_routine not in fvas:
-                    main_commands.append("af @ %d" % (ds.decoding_routine))
-                    main_commands.append("afn floss_%x @ %d" % (ds.decoding_routine, ds.decoding_routine))
-                    fvas.append(ds.decoding_routine)
             else:
                 main_commands.append("CCu base64:%s @ %d" % (sanitized_string, ds.decoded_at))
-                if ds.decoding_routine not in fvas:
-                    main_commands.append("af @ %d" % (ds.decoding_routine))
-                    main_commands.append("afn floss_%x @ %d" % (ds.decoding_routine, ds.decoding_routine))
-                    fvas.append(ds.decoding_routine)
+            if ds.decoding_routine not in fvas:
+                main_commands.extend(
+                    (
+                        "af @ %d" % (ds.decoding_routine),
+                        "afn floss_%x @ %d"
+                        % (ds.decoding_routine, ds.decoding_routine),
+                    )
+                )
+
+                fvas.append(ds.decoding_routine)
     ss_len = 0
     for ss in result_document.strings.stack_strings:
         if ss.string != "":

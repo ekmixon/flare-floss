@@ -61,10 +61,7 @@ class InstructionCount(Feature):
         super(InstructionCount, self).__init__(instruction_count)
 
     def score(self):
-        if self.value > 10:
-            return 0.8
-        else:
-            return 0.1
+        return 0.8 if self.value > 10 else 0.1
 
 
 class Arguments(Feature):

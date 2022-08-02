@@ -58,17 +58,12 @@ def render_x64dbg_database(result_document: ResultDocument) -> str:
         if ds.string != "":
             if ds.address_type == AddressType.GLOBAL:
                 rva = hex(ds.address - result_document.metadata.imagebase)
-                try:
-                    processed[rva] += "\t" + ds.string
-                except BaseException:
-                    processed[rva] = "FLOSS: " + ds.string
             else:
                 rva = hex(ds.decoded_at - result_document.metadata.imagebase)
-                try:
-                    processed[rva] += "\t" + ds.string
-                except BaseException:
-                    processed[rva] = "FLOSS: " + ds.string
-
+            try:
+                processed[rva] += "\t" + ds.string
+            except BaseException:
+                processed[rva] = f"FLOSS: {ds.string}"
     for i in list(processed.keys()):
         comment = Comment(text=processed[i], manual=False, module=module, address=i)
         export.comments.append(comment)

@@ -39,16 +39,12 @@ def append_comment(ea, s, repeatable=False):
     """
     # see: http://blogs.norman.com/2011/security-research/improving-ida-analysis-of-x64-exception-handling
 
-    if repeatable:
-        string = idc.get_cmt(ea, 1)
-    else:
-        string = idc.get_cmt(ea, 0)
-
+    string = idc.get_cmt(ea, 1) if repeatable else idc.get_cmt(ea, 0)
     if not string:
         string = s  # no existing comment
+    elif s in string:  # ignore duplicates
+        return
     else:
-        if s in string:  # ignore duplicates
-            return
         string = string + "\\n" + s
 
     if repeatable:
@@ -73,7 +69,7 @@ def append_lvar_comment(fva, frame_offset, s, repeatable=False):
 
     stack = idc.get_func_attr(fva, idc.FUNCATTR_FRAME)
     if not stack:
-        raise RuntimeError("failed to find stack frame for function: " + hex(fva))
+        raise RuntimeError(f"failed to find stack frame for function: {hex(fva)}")
 
     lvar_offset = idc.get_frame_lvar_size(fva) - frame_offset
     if not lvar_offset:
@@ -85,9 +81,9 @@ def append_lvar_comment(fva, frame_offset, s, repeatable=False):
     string = idc.get_member_cmt(stack, lvar_offset, repeatable)
     if not string:
         string = s
+    elif s in string:  # ignore duplicates
+        return
     else:
-        if s in string:  # ignore duplicates
-            return
         string = string + "\\n" + s
 
     if not idc.set_member_cmt(stack, lvar_offset, string, repeatable):

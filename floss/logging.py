@@ -26,7 +26,7 @@ FORMATS = {
     logging.CRITICAL: make_format(BOLD_RED),
 }
 
-FORMATTERS = {level: logging.Formatter(FORMATS[level]) for level in FORMATS.keys()}
+FORMATTERS = {level: logging.Formatter(FORMATS[level]) for level in FORMATS}
 
 
 class ColorFormatter(logging.Formatter):
